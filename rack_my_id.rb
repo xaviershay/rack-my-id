@@ -3,20 +3,28 @@ require 'openid'
 #require 'openid/extensions/pape'
 require 'openid/store/memory'
 
-class RackMyId
+class Rack::MyId
   include OpenID::Server
+
+  attr_reader :port
+
+  def initialize(app)
+    @app = app
+  end
 
   def call(env)
     request = Rack::Request.new(env)
+    @port = request.env["SERVER_PORT"].to_i
+
     if request.path == '/'
-      response = get_or_post(request)
+      response = get_or_post(request).finish
     end
     
-    (response || Rack::Response.new([], 404)).finish
+    response || @app.call(env)
   end
 
   def server_root
-    "http://localhost:9393/"
+    "http://localhost:#{port}/"
   end
 
   def server
@@ -55,10 +63,6 @@ class RackMyId
     end
   end
 
-  def r(method, path, params=[])
-    Rack::Router.new(method, path, params)
-  end
-
   def xrds_xml
     <<-EOS
 <?xml version="1.0" encoding="UTF-8"?>
@@ -77,5 +81,6 @@ class RackMyId
   
 end
 Rack_my_id = Rack::Builder.new do
-  run RackMyId.new
+  use Rack::MyId
+  run lambda {|env| [404, {'Content-Type' => 'text/html', 'Content-Length' => '9'}, ['NOT FOUND']]}
 end.to_app

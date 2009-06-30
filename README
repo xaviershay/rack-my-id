@@ -1,0 +1,20 @@
+Hello
+
+This is an OpenID provider that does very little
+Ideal for testing
+Just start it up
+
+rackup rack_my_id.rb --port 9294
+
+And now your openid is http://localhost:9294
+You don't even need a password
+
+Start it up at the beginning of your automated test run
+Shut it down at the end
+(check webrat/selenium/sinatra_application_server.rb for a hint)
+
+This is just Rack middleware, so you could add it to your own project
+
+Sorry there isn't a test suite. It works with CloudKit::OpenIDFilter, which is what I needed. PDI.
+
+Love Xav
