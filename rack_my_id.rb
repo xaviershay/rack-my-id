@@ -23,35 +23,37 @@ class Rack::MyId
     response || @app.call(env)
   end
 
-  def server_root
-    "http://localhost:#{port}/"
+  def server_root(request)
+    "http://%s/" % request.host_with_port
   end
 
-  def server
-    @server ||= Server.new(OpenID::Store::Memory.new, server_root)
+  def server(request)
+    @servers ||= {}
+    @servers[request.host_with_port] ||= Server.new(OpenID::Store::Memory.new, server_root(request))
   end
 
   def get_or_post(request)
-    if oidreq = server.decode_request(request.params)
+    current_server = server(request)
+    if oidreq = current_server.decode_request(request.params)
       oidresp = case oidreq
       when CheckIDRequest
-        resp = oidreq.answer(true, nil, server_root)
+        resp = oidreq.answer(true, nil, server_root(request))
         #add_sreg(oidreq, resp)
         #add_pape(oidreq, resp)
         resp
       else
-        server.handle_request(oidreq)
+        current_server.handle_request(oidreq)
       end
     
-      finalize_response(oidresp)
+      finalize_response(current_server, oidresp)
     else    
-      Rack::Response.new(xrds_xml, 200, {'Content-Type' => 'application/xrds+xml'})
+      Rack::Response.new(xrds_xml(server_root(request)), 200, {'Content-Type' => 'application/xrds+xml'})
     end
   end
 
-  def finalize_response(oidresp)
-    server.signatory.sign(oidresp) if oidresp.needs_signing
-    web_response = server.encode_response(oidresp)
+  def finalize_response(current_server, oidresp)
+    current_server.signatory.sign(oidresp) if oidresp.needs_signing
+    web_response = current_server.encode_response(oidresp)
 
     case web_response.code
     when HTTP_OK
@@ -63,7 +65,7 @@ class Rack::MyId
     end
   end
 
-  def xrds_xml
+  def xrds_xml(server_root)
     <<-EOS
 <?xml version="1.0" encoding="UTF-8"?>
 <xrds:XRDS
